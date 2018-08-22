@@ -1,7 +1,7 @@
 ### Overview
-This is a curated PyTorch implementation of the ACL 2017 paper [Reading Wikipedia to Answer Open-Domain Questions](https://arxiv.org/abs/1704.00051) (DrQA). Compared to the code in [ facebookresearch/DrQA](https://github.com/facebookresearch/DrQA/), this implementation doesn't have the document retriever and is only for purpose of training and evaluating on [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/), making it cleaner and much more light-weighted. Although there are quite a few differences in detail, this implementation follows closely the official code and achieves comparable results (F1 on the dev set being 77.6%).
+This is a curated PyTorch implementation of the ACL 2017 paper [Reading Wikipedia to Answer Open-Domain Questions](https://arxiv.org/pdf/1704.00051.pdf) (DrQA). Compared to the code in [ facebookresearch/DrQA](https://github.com/facebookresearch/DrQA/), this implementation doesn't have the document retriever and is only for purpose of training and evaluating on [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/), making it cleaner and much more light-weighted. Although there are quite a few differences in detail, this implementation follows closely the official code and achieves comparable results (F1 on the dev set being 77.6%).
 
-#### Installation
+### Installation
 The code was written for Python 3.6 or higher, and it has been tested with [PyTorch](http://pytorch.org/) 0.4.1. Other dependencies are listed in [requirements.txt](https://github.com/tangbinh/question-answering/blob/master/requirements.txt). Training is only available with GPU. To get started, try to clone the repository
 
 ```bash
@@ -19,7 +19,7 @@ mv "stanford-corenlp-full-2017-06-09" "corenlp"
 export CLASSPATH=corenlp/*:$CLASSPATH
 ```
 
-#### Preprocessing
+### Preprocessing
 If you haven't downloaded SQuAD or GloVe, it might be easier for you to just run
 ```bash
 bash download.sh
@@ -29,19 +29,19 @@ Then, the following command helps tokenize the downloaded datasets, extract feat
 python preprocess.py --data data/squad --embed-path wordvec/glove/glove.840B.300d.txt --restrict-vocab
 ```
 
-#### Training
+### Training
 To get started with training a model on SQuAD, you might find the following command helpful:
 ```bash
 python train.py --embed-path wordvec/glove/glove.840B.300d.txt --checkpoint-dir checkpoints/drqa --log-file logs/drqa.log
 ```
 
-#### Prediction
+### Prediction
 When the training is done, you can make predictions and run the official evaluation script:
 ```bash
 python predict.py --input data/dev.json --output predictions/dev-pred.json --feature-dict data/feature_dict.json --checkpoint checkpoints/drqa/checkpoint_best.pt
 python evaluate.py data/dev-v1.1.json predictions/dev-pred.json
 ```
-#### Interactive
+### Interactive
 As in the official implementation, it's possible to have an interactive environment for evaluation:
 ```bash
 python interactive.py --checkpoint checkpoints/drqa/checkpoint_best.pt
