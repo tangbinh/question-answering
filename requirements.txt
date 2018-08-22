@@ -1,0 +1,7 @@
+torch
+numpy
+scikit-learn
+spacy
+tqdm
+prettytable
+pexpect==4.2.1
