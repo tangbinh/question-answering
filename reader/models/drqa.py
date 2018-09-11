@@ -13,7 +13,7 @@ class DrQA(ReadingModel):
         self, dictionary, embed_dim=300, hidden_size=128, context_layers=3, question_layers=3, dropout=0.4,
         bidirectional=True, concat_layers=True, question_embed=True, pretrained_embed=None, num_features=0,
     ):
-        super().__init__(dictionary, embed_dim)
+        super().__init__(dictionary)
         self.dropout = dropout
         self.question_embed = question_embed
         self.num_features = num_features
@@ -65,7 +65,7 @@ class DrQA(ReadingModel):
         parser.add_argument('--tune-embed', type=int, help='number of most frequent words whose embeddings are tuned')
 
     @classmethod
-    def build_model(cls, args, dictionary):
+    def build_model(cls, args, dictionary, char_dictionary):
         base_architecture(args)
         return cls(
             dictionary, embed_dim=args.embed_dim, hidden_size=args.hidden_size, context_layers=args.context_layers,
@@ -98,7 +98,8 @@ class DrQA(ReadingModel):
         question_hiddens = self.question_rnn(question_embeddings, question_mask)
 
         # Summarize hidden states of question words into a vector
-        question_hidden = self.question_attention(question_hiddens)
+        attention_scores = self.question_attention(question_hiddens, log_probs=False)
+        question_hidden = (attention_scores.unsqueeze(dim=2) * question_hiddens).sum(dim=1)
 
         # Predict answers with attentions
         start_scores = self.start_attention(question_hidden, context_hiddens, context_mask, log_probs=self.training)

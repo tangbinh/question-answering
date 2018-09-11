@@ -65,7 +65,7 @@ class Dictionary(object):
         with open(filename, encoding='utf-8') as f:
             dictionary = cls()
             for line in f.readlines():
-                word, count = line.strip().rsplit(' ', 1)
+                word, count = line.rstrip().rsplit(' ', 1)
                 dictionary.word2idx[word] = len(dictionary.words)
                 dictionary.words.append(word)
                 dictionary.counts.append(int(count))

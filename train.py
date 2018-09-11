@@ -60,32 +60,31 @@ def main(args):
 
     # Load a dictionary
     dictionary = Dictionary.load(os.path.join(args.data, 'dict.txt'))
-    logging.info('Loaded a source dictionary with {} words'.format(len(dictionary)))
+    logging.info('Loaded a word dictionary with {} words'.format(len(dictionary)))
+    char_dictionary = Dictionary.load(os.path.join(args.data, 'char_dict.txt'))
+    logging.info('Loaded a character dictionary with {} words'.format(len(char_dictionary)))
 
     # Load a training and validation dataset
     with open(os.path.join(args.data, 'train.json')) as file:
         train_contents = json.load(file)
         train_dataset = ReadingDataset(
-            train_contents['contexts'], train_contents['examples'], dictionary, eval(args.use_in_question),
-            eval(args.use_lemma), eval(args.use_ner), eval(args.use_pos), eval(args.use_tf),
-            skip_no_answer=True, single_answer=True
+            args, train_contents['contexts'], train_contents['examples'], dictionary,
+            char_dictionary, skip_no_answer=True, single_answer=True,
         )
-        # Save feature dictionary for later use with evaluation
-        with open(os.path.join(args.data, 'feature_dict.json'), 'w') as file:
-            json.dump(train_dataset.feature_dict, file)
-        args.num_features = len(train_dataset.feature_dict)
         logging.info('Created a training dataset of {} examples'.format(len(train_dataset)))
 
     with open(os.path.join(args.data, 'dev.json')) as file:
         contents = json.load(file)
         valid_dataset = ReadingDataset(
-            contents['contexts'], contents['examples'], dictionary, feature_dict=train_dataset.feature_dict,
-            skip_no_answer=True, single_answer=True
+            args, contents['contexts'], contents['examples'], dictionary, char_dictionary,
+            feature_dict=train_dataset.feature_dict, skip_no_answer=True, single_answer=True
         )
         logging.info('Created a validation dataset of {} examples'.format(len(valid_dataset)))
 
+    train_dataset.collater([train_dataset[2], train_dataset[3], train_dataset[7]])
+
     # Build a model
-    model = models.build_model(args, dictionary).cuda()
+    model = models.build_model(args, dictionary, char_dictionary).cuda()
     logging.info('Built a model with {} parameters'.format(sum(p.numel() for p in model.parameters())))
 
     # Build an optimizer and a learning rate schedule
@@ -109,7 +108,12 @@ def main(args):
         for batch_id, sample in enumerate(progress_bar):
             # Forward and backward pass
             sample = utils.move_to_cuda(sample)
-            start_scores, end_scores = model(sample['context_tokens'], sample['question_tokens'], context_features=sample['context_features'])
+            start_scores, end_scores = model(
+                sample['context_tokens'], sample['question_tokens'],
+                context_chars=sample['context_chars'],
+                question_chars=sample['question_chars'],
+                context_features=sample['context_features']
+            )
             start_loss = F.nll_loss(start_scores, torch.LongTensor(sample['answer_start']).view(-1).cuda())
             end_loss = F.nll_loss(end_scores, torch.LongTensor(sample['answer_end']).view(-1).cuda())
             loss = start_loss + end_loss
@@ -158,7 +162,12 @@ def validate(args, model, valid_dataset, epoch):
     for batch_id, sample in enumerate(progress_bar):
         sample = utils.move_to_cuda(sample)
         with torch.no_grad():
-            start_scores, end_scores = model(sample['context_tokens'], sample['question_tokens'], context_features=sample['context_features'])
+            start_scores, end_scores = model(
+                sample['context_tokens'], sample['question_tokens'],
+                context_chars=sample['context_chars'],
+                question_chars=sample['question_chars'],
+                context_features=sample['context_features']
+            )
             start_target, end_target = sample['answer_start'], sample['answer_end']
 
             stats['num_tokens'] += sample['num_tokens']

@@ -47,6 +47,7 @@ def get_args():
 
     parser.add_argument('--threshold', default=0, type=int, help='map words appearing less than threshold times to unknown')
     parser.add_argument('--num-words', default=-1, type=int, help='number of source words to retain')
+    parser.add_argument('--num-characters', default=-1, type=int, help='number of source characters to retain')
     parser.add_argument('--embed-path', type=str, default=None, help='path to pretrained embedding')
     parser.add_argument('--restrict-vocab', action='store_true', help='only use pre-trained words in embedding_file')
     return parser.parse_args()
@@ -67,7 +68,8 @@ def main(args):
 
         # Build a dictionary from train examples only
         if split == 'train':
-            build_dictionary(args, [q['tokens'] for q in questions], [c['tokens'] for c in contexts])
+            build_word_dictionary(args, [q['tokens'] for q in questions], [c['tokens'] for c in contexts])
+            build_character_dictionary(args, [q['tokens'] for q in questions], [c['tokens'] for c in contexts])
 
         examples = []
         for qid, cid in enumerate(dataset['context_ids']):
@@ -114,8 +116,8 @@ def load_dataset(filename):
     return outputs
 
 
-def build_dictionary(args, question_tokens, context_tokens):
-    """Build a dictionary from questions and contexts"""
+def build_word_dictionary(args, question_tokens, context_tokens):
+    """Build a word dictionary from questions and contexts"""
     valid_words = None
     if args.restrict_vocab and args.embed_path is not None:
         with open(args.embed_path) as file:
@@ -131,6 +133,19 @@ def build_dictionary(args, question_tokens, context_tokens):
     dictionary.save(os.path.join(args.dest_dir, 'dict.txt'))
     logging.info('Built a dictionary with {} words'.format(len(dictionary)))
     return dictionary
+
+
+def build_character_dictionary(args, question_tokens, context_tokens):
+    """Build a character dictionary from questions and contexts"""
+    dictionary = Dictionary()
+    for text in itertools.chain(question_tokens, context_tokens):
+        for word in text:
+            for char in word:
+                dictionary.add_word(char)
+
+    dictionary.finalize(threshold=args.threshold, num_words=args.num_characters)
+    dictionary.save(os.path.join(args.dest_dir, 'char_dict.txt'))
+    logging.info('Built a dictionary with {} characters'.format(len(dictionary)))
 
 
 if __name__ == '__main__':

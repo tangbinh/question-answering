@@ -1,4 +1,6 @@
 import collections
+import os
+import json
 import numpy as np
 
 import torch
@@ -8,16 +10,13 @@ from torch.utils.data.sampler import Sampler
 
 class ReadingDataset(Dataset):
     def __init__(
-        self, contexts, examples, dictionary, use_in_question=True, use_lemma=True, use_ner=True,
-        use_pos=True, use_tf=True, feature_dict=None, single_answer=False, skip_no_answer=False,
+        self, args, contexts, examples, dictionary, char_dictionary,
+        feature_dict=None, single_answer=False, skip_no_answer=False,
     ):
+        self.args = args
         self.contexts = contexts
         self.dictionary = dictionary
-        self.use_in_question = use_in_question
-        self.use_lemma = use_lemma
-        self.use_ner = use_ner
-        self.use_pos = use_pos
-        self.use_tf = use_tf
+        self.char_dictionary = char_dictionary
         self.single_answer = single_answer
 
         self.examples = [ex for ex in examples if len(ex['answers']['spans']) > 0] if skip_no_answer else examples
@@ -36,17 +35,24 @@ class ReadingDataset(Dataset):
     def _build_feature_dict(self):
         """Build a dictionary that maps feature names to indices"""
         feature_dict = collections.OrderedDict()
-        def maybe_insert(condition, features):
-            if condition:
+        def maybe_insert(attribute, features):
+            if eval(getattr(self.args, attribute, 'False')):
                 for feature in features:
                     if feature not in feature_dict:
                         feature_dict[feature] = len(feature_dict)
 
-        maybe_insert(self.use_in_question, ['in_question_cased', 'in_question_uncased'])
-        maybe_insert(self.use_lemma, ['in_question_lemma'])
-        maybe_insert(self.use_pos, ['pos={}'.format(pos) for ctx in self.contexts for pos in ctx['pos']])
-        maybe_insert(self.use_ner, ['ner={}'.format(ner) for ctx in self.contexts for ner in ctx['ner']])
-        maybe_insert(self.use_tf, ['tf'])
+        maybe_insert('use_in_question', ['in_question_cased', 'in_question_uncased'])
+        maybe_insert('use_lemma', ['in_question_lemma'])
+        maybe_insert('use_pos', ['pos={}'.format(pos) for ctx in self.contexts for pos in ctx['pos']])
+        maybe_insert('use_ner', ['ner={}'.format(ner) for ctx in self.contexts for ner in ctx['ner']])
+        maybe_insert('use_tf', ['tf'])
+
+        # Initializing RNNs requires known input size
+        self.args.num_features = len(feature_dict)
+
+        # Save feature dictionary for later use with evaluation
+        with open(os.path.join(self.args.data, 'feature_dict.json'), 'w') as file:
+            json.dump(feature_dict, file)
         return feature_dict
 
     def __len__(self):
@@ -57,6 +63,9 @@ class ReadingDataset(Dataset):
         context = self.contexts[example['context_id']]
         question_tokens = torch.LongTensor([self.dictionary.index(w) for w in example['question']['tokens']])
         context_tokens = torch.LongTensor([self.dictionary.index(w) for w in context['tokens']])
+
+        question_chars = [torch.LongTensor([self.char_dictionary.index(c) for c in w]) for w in example['question']['tokens']]
+        context_chars = [torch.LongTensor([self.char_dictionary.index(c) for c in w]) for w in context['tokens']]
 
         if len(self.feature_dict) == 0:
             context_features = None
@@ -94,6 +103,8 @@ class ReadingDataset(Dataset):
             'id': example['id'],
             'question_tokens': question_tokens,
             'context_tokens': context_tokens,
+            'question_chars': question_chars,
+            'context_chars': context_chars,
             'context_features': context_features,
             'answer_start': answer_start,
             'answer_end': answer_end,
@@ -113,9 +124,24 @@ class ReadingDataset(Dataset):
                 result[i, :len(v)].copy_(v)
             return result
 
+        def aggregate(list_values):
+            # Convert a list of lists of tensors into a padded tensor
+            seq_length = max_length = 0
+            for values in list_values:
+                seq_length = max(seq_length, len(values))
+                max_length = max(max_length, max(v.size(0) for v in values))
+            result = list_values[0][0].new(len(list_values), seq_length, max_length)
+            result = result.fill_(self.dictionary.pad_idx)
+            for i, values in enumerate(list_values):
+                for j, v in enumerate(values):
+                    result[i, j, :len(v)].copy_(v)
+            return result
+
         id = [s['id'] for s in samples]
         question_tokens = merge([s['question_tokens'] for s in samples])
         context_tokens = merge([s['context_tokens'] for s in samples])
+        question_chars = aggregate([s['question_chars'] for s in samples])
+        context_chars = aggregate([s['context_chars'] for s in samples])
         answer_start = [s['answer_start'] for s in samples]
         answer_end = [s['answer_end'] for s in samples]
 
@@ -124,6 +150,8 @@ class ReadingDataset(Dataset):
         context_lengths, sort_order = context_lengths.sort(descending=True)
         question_tokens = question_tokens.index_select(0, sort_order)
         context_tokens = context_tokens.index_select(0, sort_order)
+        question_chars = question_chars.index_select(0, sort_order)
+        context_chars = context_chars.index_select(0, sort_order)
 
         if samples[0]['context_features'] is None:
             context_features = None
@@ -139,6 +167,8 @@ class ReadingDataset(Dataset):
             'id': id,
             'question_tokens': question_tokens,
             'context_tokens': context_tokens,
+            'question_chars': question_chars,
+            'context_chars': context_chars,
             'context_features': context_features,
             'answer_start': answer_start,
             'answer_end': answer_end,

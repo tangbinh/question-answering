@@ -47,21 +47,22 @@ class SelfAttention(nn.Module):
         super().__init__()
         self.linear = nn.Linear(hidden_size, 1)
 
-    def forward(self, input, input_mask=None):
+    def forward(self, input, input_mask=None, log_probs=True):
         # input:    batch_size x input_size x hidden_size
         # output:   batch_size x hidden_size
         input_scores = self.linear(input).squeeze(dim=-1)
         if input_mask is not None:
             input_scores.masked_fill_(input_mask, float('-inf'))
-        input_scores = F.softmax(input_scores, dim=-1)
-        input_hidden = (input_scores.unsqueeze(dim=2) * input).sum(dim=1)
-        return input_hidden
+        if log_probs:
+            return F.log_softmax(input_scores, dim=-1)
+        else:
+            return F.softmax(input_scores, dim=-1)
 
 
 class StackedRNN(nn.Module):
     def __init__(
-        self, input_size, hidden_size, num_layers=1, dropout=0, rnn_type=nn.LSTM,
-        bidirectional=True, concat_layers=True
+        self, input_size, hidden_size, num_layers=1, dropout=0,
+        bidirectional=True, concat_layers=True, rnn_type=nn.LSTM,
     ):
         super().__init__()
         self.dropout = dropout

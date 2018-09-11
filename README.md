@@ -1,5 +1,7 @@
 ### Overview
-This is a curated PyTorch implementation of the ACL 2017 paper [Reading Wikipedia to Answer Open-Domain Questions](https://arxiv.org/pdf/1704.00051.pdf) (DrQA). Compared to the code in [ facebookresearch/DrQA](https://github.com/facebookresearch/DrQA/), this implementation doesn't have the document retriever and is only for purpose of training and evaluating on [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/), making it cleaner and much more light-weighted. Although there are quite a few differences in detail, this implementation follows closely the official code and achieves comparable results (F1 on the dev set being 77.6%).
+This repository contains curated PyTorch implementations of several question answering systems evaluated on [SQuAD](https://rajpurkar.github.io/SQuAD-explorer/):
+* [Reading Wikipedia to Answer Open-Domain Questions](https://arxiv.org/pdf/1704.00051.pdf) (DrQA). Compared to the code in [facebookresearch/DrQA](https://github.com/facebookresearch/DrQA/), the implementation in this repository doesn't have the document retriever, making it cleaner and much more light-weighted. The F1 score on the validation set for this implementation is 77.6% (the official F1 score is 78.8%).
+* [Bidirectional Attention Flow](https://arxiv.org/pdf/1611.01603.pdf) (BiDAF). For better performance, the BiDAF implementation doesn't have a highway network to combine character embeddings and word embeddings, and it achieves a F1 score of 76.5% (the official F1 score is 77.3%).
 
 ### Installation
 The code was written for Python 3.6 or higher, and it has been tested with [PyTorch](http://pytorch.org/) 0.4.1. Other dependencies are listed in [requirements.txt](https://github.com/tangbinh/question-answering/blob/master/requirements.txt). Training is only available with GPU. To get started, try to clone the repository
@@ -26,13 +28,14 @@ bash download.sh
 ```
 Then, the following command helps tokenize the downloaded datasets, extract features such as part-of-speech tagging, and build a dictionary using all CPUs available in your machine:
 ```bash
-python preprocess.py --data data/squad --embed-path wordvec/glove/glove.840B.300d.txt --restrict-vocab
+python preprocess.py --data data/squad --embed-path wordvec/glove/glove.840B.300d.txt --restrict-vocab --num-characters 300
 ```
 
 ### Training
-To get started with training a model on SQuAD, you might find the following command helpful:
+To get started with training a model on SQuAD, you might find the following commands helpful:
 ```bash
-python train.py --embed-path wordvec/glove/glove.840B.300d.txt --checkpoint-dir checkpoints/drqa --log-file logs/drqa.log
+python train.py --arch drqa --embed-path wordvec/glove/glove.840B.300d.txt --checkpoint-dir checkpoints/drqa --log-file logs/drqa.log
+python train.py --arch bidaf --embed-path wordvec/glove/glove.840B.300d.txt --checkpoint-dir checkpoints/bidaf --log-file logs/bidaf.log --lr 0.01
 ```
 
 ### Prediction

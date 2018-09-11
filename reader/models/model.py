@@ -6,7 +6,7 @@ from reader.data.dictionary import Dictionary
 
 
 class ReadingModel(nn.Module):
-    def __init__(self, dictionary, embed_dim):
+    def __init__(self, dictionary):
         super().__init__()
         self.dictionary = dictionary
 

@@ -9,8 +9,8 @@ ARCH_MODEL_REGISTRY = {}
 ARCH_CONFIG_REGISTRY = {}
 
 
-def build_model(args, dictionary):
-    return ARCH_MODEL_REGISTRY[args.arch].build_model(args, dictionary)
+def build_model(args, dictionary, char_dictionary):
+    return ARCH_MODEL_REGISTRY[args.arch].build_model(args, dictionary, char_dictionary)
 
 
 def register_model(name):
