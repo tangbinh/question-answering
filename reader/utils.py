@@ -14,7 +14,9 @@ from reader.data.tokenizer import Tokenizer
 def init_logging(args):
     handlers = [logging.StreamHandler()]
     if hasattr(args, 'log_file') and args.log_file is not None:
-        handlers.append(logging.FileHandler(args.log_file, mode='w'))
+        checkpoint_path = os.path.join(args.checkpoint_dir, args.restore_file)
+        mode = 'a' if os.path.isfile(checkpoint_path) else 'w'
+        handlers.append(logging.FileHandler(args.log_file, mode=mode))
     logging.basicConfig(handlers=handlers, format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
     logging.info('COMMAND: %s' % ' '.join(sys.argv))
     logging.info('Arguments: {}'.format(vars(args)))

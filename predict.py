@@ -34,19 +34,22 @@ def main(args):
     args = argparse.Namespace(**{**vars(state_dict['args']), **vars(args), 'embed_path': None})
     utils.init_logging(args)
 
-    # Load dictionary and pretrained model
+    # Load dictionaries
     dictionary = Dictionary.load(os.path.join(args.data, 'dict.txt'))
     logging.info('Loaded a dictionary with {} words'.format(len(dictionary)))
-    model = models.build_model(args, dictionary).cuda().eval()
+    char_dictionary = Dictionary.load(os.path.join(args.data, 'char_dict.txt'))
+    logging.info('Loaded a character dictionary with {} words'.format(len(char_dictionary)))
+
+    # Load trained model
+    model = models.build_model(args, dictionary, char_dictionary).cuda().eval()
     model.load_state_dict(state_dict['model'])
 
     # Load dataset
     with open(args.input) as input_file, open(args.feature_dict) as feature_file:
         contents, feature_dict = json.load(input_file), json.load(feature_file)
-
     test_dataset = ReadingDataset(
-        contents['contexts'], contents['examples'], dictionary, feature_dict=feature_dict,
-        skip_no_answer=False, single_answer=False
+        args, contents['contexts'], contents['examples'], dictionary, char_dictionary,
+        feature_dict=feature_dict, skip_no_answer=False, single_answer=False
     )
     test_loader = torch.utils.data.DataLoader(
         test_dataset, num_workers=args.num_workers, collate_fn=test_dataset.collater,
@@ -58,9 +61,14 @@ def main(args):
     results = {}
 
     for batch_id, sample in enumerate(progress_bar):
-        sample = utils.move_to_cuda(sample) if not args.no_cuda else sample
+        sample = utils.move_to_cuda(sample)
         with torch.no_grad():
-            start_scores, end_scores = model(sample['context_tokens'], sample['question_tokens'], context_features=sample['context_features'])
+            start_scores, end_scores = model(
+                sample['context_tokens'], sample['question_tokens'],
+                context_chars=sample['context_chars'],
+                question_chars=sample['question_chars'],
+                context_features=sample['context_features']
+            )
             start_preds, end_preds, _ = model.decode(start_scores, end_scores, max_len=15)
             stats['num_tokens'] += sample['num_tokens']
             stats['batch_size'] += len(sample['id'])

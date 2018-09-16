@@ -81,8 +81,6 @@ def main(args):
         )
         logging.info('Created a validation dataset of {} examples'.format(len(valid_dataset)))
 
-    train_dataset.collater([train_dataset[2], train_dataset[3], train_dataset[7]])
-
     # Build a model
     model = models.build_model(args, dictionary, char_dictionary).cuda()
     logging.info('Built a model with {} parameters'.format(sum(p.numel() for p in model.parameters())))

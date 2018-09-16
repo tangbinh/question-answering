@@ -36,8 +36,13 @@ def main(args):
     # Load dictionary and pretrained model
     dictionary = Dictionary.load(os.path.join(args.data, 'dict.txt'))
     logging.info('Loaded a dictionary with {} words'.format(len(dictionary)))
-    model = models.build_model(args, dictionary).cuda().eval()
+    char_dictionary = Dictionary.load(os.path.join(args.data, 'char_dict.txt'))
+    logging.info('Loaded a character dictionary with {} words'.format(len(char_dictionary)))
+
+    # Load trained model
+    model = models.build_model(args, dictionary, char_dictionary).cuda().eval()
     model.load_state_dict(state_dict['model'])
+
     with open(os.path.join(args.data, 'feature_dict.json')) as file:
         feature_dict = json.load(file)
 
@@ -53,7 +58,9 @@ def main(args):
         question = tokenizer.tokenize(question)
         examples = [{'id': 0, 'question': question, 'context_id': 0, 'answers': {'spans': [], 'texts': []}}]
 
-        test_dataset = ReadingDataset([context], examples, dictionary, feature_dict=feature_dict, skip_no_answer=False)
+        test_dataset = ReadingDataset(
+            args, [context], examples, dictionary, char_dictionary, feature_dict=feature_dict, skip_no_answer=False
+        )
         test_loader = torch.utils.data.DataLoader(
             test_dataset, num_workers=args.num_workers, collate_fn=test_dataset.collater,
             batch_sampler=BatchSampler(test_dataset, args.max_tokens, args.batch_size, shuffle=False, seed=args.seed)
@@ -62,8 +69,12 @@ def main(args):
         # Forward pass
         with torch.no_grad():
             sample = utils.move_to_cuda(next(iter(test_loader)))
-            start_scores, end_scores = model(sample['context_tokens'], sample['question_tokens'], context_features=sample['context_features'])
-            # start_scores, end_scores = model(context_tokens.unsqueeze(0), question_tokens.unsqueeze(0))
+            start_scores, end_scores = model(
+                sample['context_tokens'], sample['question_tokens'],
+                context_chars=sample['context_chars'],
+                question_chars=sample['question_chars'],
+                context_features=sample['context_features']
+            )
             start_preds, end_preds, scores = model.decode(start_scores, end_scores, topk=topk)
 
         # Map predictions to span
